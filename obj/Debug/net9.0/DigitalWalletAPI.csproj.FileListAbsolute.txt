@@ -314,3 +314,4 @@ C:\Users\Kupela\Desktop\DigitalWalletBackend\obj\Debug\net9.0\refint\DigitalWall
 C:\Users\Kupela\Desktop\DigitalWalletBackend\obj\Debug\net9.0\DigitalWalletAPI.pdb
 C:\Users\Kupela\Desktop\DigitalWalletBackend\obj\Debug\net9.0\DigitalWalletAPI.genruntimeconfig.cache
 C:\Users\Kupela\Desktop\DigitalWalletBackend\obj\Debug\net9.0\ref\DigitalWalletAPI.dll
+C:\Users\Kupela\Desktop\DigitalWalletBackend\obj\Debug\net9.0\DigitalWalletAPI.sourcelink.json

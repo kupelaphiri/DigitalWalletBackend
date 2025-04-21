@@ -1,51 +1,38 @@
-﻿using Microsoft.AspNetCore.Mvc;
-
-// For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using DigitalWalletAPI.Data;
+using DigitalWalletAPI.Models;
 
 namespace DigitalWalletAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class WalletController : ControllerBase
     {
-        // GET: api/<WalletController>
-        //[HttpGet]
-        //public IEnumerable<string> Get()
-        //{
-        //    return new string[] { "value1", "value2" };
-        //}
+        private readonly ApplicationDbContext _context;
 
+        public WalletController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        // GET api/wallet/balance
         [HttpGet("balance")]
-        public IActionResult GetBalance()
+        public async Task<IActionResult> GetBalance()
         {
-            // Example balance data
-            var balance = new { Amount = 100.50, Currency = "USD" };
-            return Ok(balance);
-        }
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
+                return Unauthorized("User not found.");
 
-        //// GET api/<WalletController>/5
-        //[HttpGet("{id}")]
-        //public string Get(int id)
-        //{
-        //    return "value";
-        //}
+            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId.ToString() == userId);
+            if (wallet == null)
+                return NotFound("Wallet not found for this user.");
 
-        // POST api/<WalletController>
-        [HttpPost]
-        public void Post([FromBody] string value)
-        {
-        }
-
-        // PUT api/<WalletController>/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody] string value)
-        {
-        }
-
-        // DELETE api/<WalletController>/5
-        [HttpDelete("{id}")]
-        public void Delete(int id)
-        {
+            return Ok(new { balance = wallet.Balance });
         }
     }
 }

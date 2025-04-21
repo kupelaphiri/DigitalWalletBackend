@@ -38,7 +38,6 @@ namespace DigitalWalletAPI.Controllers
             if (existingUser != null)
                 return BadRequest("User already exists.");
 
-            // Create new user
             var user = new User
             {
                 Username = userDto.Username,
@@ -49,105 +48,132 @@ namespace DigitalWalletAPI.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // Generate JWT and Refresh tokens for the new user
             var tokens = GenerateTokens(user);
 
-            // Save refresh token in the database
             var userToken = new UserToken
             {
                 UserId = user.Id,
                 AccessToken = tokens.accessToken,
                 RefreshToken = tokens.refreshToken,
                 CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddDays(7), // Refresh token expiration time
-                Revoked = false, // Refresh token expiration time
-            };
-
-            _context.UserTokens.Add(userToken);
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = "User registered successfully!",
-                accessToken = tokens.accessToken,
-                refreshToken = tokens.refreshToken
-            });
-        }
-
-        // POST api/auth/login
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] UserLoginDto loginDto)
-        {
-            // Find the user by email or username
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == loginDto.Email && u.Username == loginDto.Username);
-
-            if (user == null)
-                return Unauthorized("Invalid username or password.");
-
-            // Verify password
-            bool passwordMatch = BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash);
-            if (!passwordMatch)
-                return Unauthorized("Invalid username or password.");
-
-            // Generate JWT and Refresh tokens
-            var tokens = GenerateTokens(user);
-
-            // Save refresh token in the database (if it's a new login)
-            var userToken = new UserToken
-            {
-                UserId = user.Id,
-                AccessToken = tokens.accessToken,
-                RefreshToken = tokens.refreshToken,
-                CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddDays(7), // Refresh token expiration time
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
                 Revoked = false,
             };
 
             _context.UserTokens.Add(userToken);
             await _context.SaveChangesAsync();
 
-            return Ok(new
-            {
-                message = "Login successful!",
-                accessToken = tokens.accessToken,
-                refreshToken = tokens.refreshToken
+            Response.Cookies.Append("cfcf", tokens.refreshToken, new CookieOptions
+             {
+             HttpOnly = true,
+             Secure = false, 
+             SameSite = SameSiteMode.Lax,
+             Expires = DateTime.UtcNow.AddDays(7)
+             });
+
+           return Ok(new
+           {
+            message = "User registered successfully!",
+            accessToken = tokens.accessToken
             });
+
         }
 
-        // POST api/auth/refresh-token
-        [HttpPost("refresh-token")]
-        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto refreshTokenDto)
+        // POST api/auth/login
+    [HttpPost("login")]
+       public async Task<IActionResult> Login([FromBody] UserLoginDto loginDto)
+    {
+    var user = await _context.Users
+        .FirstOrDefaultAsync(u => u.Email == loginDto.Email && u.Username == loginDto.Username);
+
+    if (user == null)
+        return Unauthorized("Invalid username or password.");
+
+    bool passwordMatch = BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash);
+    if (!passwordMatch)
+        return Unauthorized("Invalid username or password.");
+
+    var tokens = GenerateTokens(user);
+
+    // Save refresh token in the database
+    var userToken = new UserToken
+    {
+        UserId = user.Id,
+        AccessToken = tokens.accessToken,
+        RefreshToken = tokens.refreshToken,
+        CreatedAt = DateTime.UtcNow,
+        ExpiresAt = DateTime.UtcNow.AddDays(7),
+        Revoked = false
+    };
+
+    _context.UserTokens.Add(userToken);
+    await _context.SaveChangesAsync();
+
+    // Set the refresh token as an HttpOnly cookie
+    Response.Cookies.Append("cfcf", tokens.refreshToken, new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = false, // true in production
+        SameSite = SameSiteMode.Lax, // or Lax depending on frontend-backend config
+        Expires = DateTime.UtcNow.AddDays(7)
+    });
+
+    // Return the access token only (refresh token handled via cookie)
+    return Ok(new
+    {
+        message = "Login successful!",
+        accessToken = tokens.accessToken
+    });
+    }
+
+
+    [HttpGet("refresh-token")]
+     public async Task<IActionResult> RefreshToken()
+    {
+    // Get refresh token from the cookie
+    if (!Request.Cookies.TryGetValue("cfcf", out var refreshToken))
+    {
+        return Unauthorized("No refresh token found.");
+    }
+
+    // Validate the token
+    var userToken = await _context.UserTokens
+        .FirstOrDefaultAsync(t => t.RefreshToken == refreshToken && !t.Revoked);
+
+    if (userToken == null || userToken.ExpiresAt < DateTime.UtcNow)
+    {
+        return Unauthorized("Invalid or expired refresh token.");
+    }
+
+    // Find the user
+    var user = await _context.Users.FindAsync(userToken.UserId);
+    if (user == null)
+        return Unauthorized("User not found.");
+
+    // Generate new tokens
+    var tokens = GenerateTokens(user);
+
+    // Update refresh token (token rotation)
+    userToken.RefreshToken = tokens.refreshToken;
+    userToken.AccessToken = tokens.accessToken;
+    userToken.ExpiresAt = DateTime.UtcNow.AddDays(7);
+    await _context.SaveChangesAsync();
+
+    // Set the new refresh token in HttpOnly cookie
+    Response.Cookies.Append("cfcf", tokens.refreshToken, new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = false, // Always use HTTPS in production
+        SameSite = SameSiteMode.Lax, // Adjust based on your frontend/backend origin relationship
+        Expires = DateTime.UtcNow.AddDays(7)
+    });
+
+        return Ok(new
         {
-            // Validate the incoming refresh token
-            var userToken = await _context.UserTokens
-                .FirstOrDefaultAsync(t => t.RefreshToken == refreshTokenDto.RefreshToken);
+         accessToken = tokens.accessToken
+         });
+    }
 
-            if (userToken == null || userToken.ExpiresAt < DateTime.UtcNow)
-            {
-                return Unauthorized("Invalid or expired refresh token.");
-            }
-
-            // Find the user associated with the refresh token
-            var user = await _context.Users.FindAsync(userToken.UserId);
-            if (user == null)
-                return Unauthorized("User not found.");
-
-            // Generate new access and refresh tokens
-            var tokens = GenerateTokens(user);
-
-            // Update the refresh token in the database
-            userToken.RefreshToken = tokens.refreshToken;
-            userToken.ExpiresAt = DateTime.UtcNow.AddDays(7); // Reset expiration time
-            _context.UserTokens.Update(userToken);
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                accessToken = tokens.accessToken,
-                refreshToken = tokens.refreshToken
-            });
-        }
 
         // POST api/auth/logout
         [HttpPost("logout")]
@@ -169,6 +195,9 @@ namespace DigitalWalletAPI.Controllers
                 _context.UserTokens.Remove(userToken);
                 await _context.SaveChangesAsync();
             }
+
+              // Clear the refresh token cookie
+              Response.Cookies.Delete("cfcf");
 
             return Ok(new { message = "Logged out successfully." });
         }

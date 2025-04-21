@@ -11,5 +11,6 @@ namespace DigitalWalletAPI.Data
         public DbSet<User> Users { get; set; } // Add your database tables here
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<UserToken> UserTokens { get; set; }
+        public DbSet<Wallet> Wallets { get; set; }
     }
 }
