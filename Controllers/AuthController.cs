@@ -170,6 +170,7 @@ namespace DigitalWalletAPI.Controllers
 
         return Ok(new
         {
+         user = user,
          accessToken = tokens.accessToken
          });
     }

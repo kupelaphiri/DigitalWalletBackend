@@ -44,7 +44,7 @@ namespace DigitalWalletAPI.Controllers
             {
                 UserId = userId,  // Safely set the userId from the JWT token
                 Amount = transactionDto.Amount,
-                RecipientUsername = transactionDto.RecipientUsername,
+                RecipientEmail = transactionDto.RecipientEmail,
                 Date = DateTime.UtcNow
             };
 
@@ -55,30 +55,23 @@ namespace DigitalWalletAPI.Controllers
         }
 
         // GET api/transactions
-        [HttpGet]
-        public async Task<IActionResult> GetTransactions()
+       [HttpGet("{userId}")]
+       public async Task<IActionResult> GetTransactions(int userId)
         {
-            // Get the logged-in user's ID from the JWT token
-            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        // Fetch all transactions for the given user ID
+        var transactions = await _context.Transactions
+        .Where(t => t.UserId == userId)
+        .OrderByDescending(t => t.Date)
+        .ToListAsync();
 
-            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out int userId))
-            {
-                return Unauthorized("User ID is invalid.");
-            }
-
-            // Fetch all transactions for the logged-in user
-            var transactions = await _context.Transactions
-                .Where(t => t.UserId == userId)
-                .OrderByDescending(t => t.Date)
-                .ToListAsync();
-
-            return Ok(transactions);
+         return Ok(transactions);
         }
+
     }
 }
 
 public class TransactionCreateDto
 {
-    public decimal Amount { get; set; } // Transaction amount
-    public string RecipientUsername { get; set; } // Username of the recipient
+    public decimal Amount { get; set; }
+    public string RecipientEmail { get; set; }
 }

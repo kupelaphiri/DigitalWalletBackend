@@ -7,14 +7,12 @@ using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 
-JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();  // Add this line
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear(); 
 
 
-// ✅ Add database connection to PostgreSQL
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
