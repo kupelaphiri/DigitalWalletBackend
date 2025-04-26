@@ -18,8 +18,8 @@ namespace DigitalWalletAPI.Controllers
         }
 
         // GET: api/expenses
-       [HttpGet]
-        public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses([FromQuery] string userId)
+       [HttpGet("{userId}")]
+        public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses(string userId)
         {
          if (string.IsNullOrEmpty(userId))
          return BadRequest("UserId is required.");
@@ -35,6 +35,8 @@ namespace DigitalWalletAPI.Controllers
          [HttpPost]
         public async Task<ActionResult<Expense>> AddExpense([FromBody] Expense expense)
         {
+            Console.WriteLine($"Expense: {expense.Title}, {expense.Amount}, {expense.Date}, {expense.Category}, {expense.UserId}");
+             expense.Date = DateTime.SpecifyKind(expense.Date, DateTimeKind.Utc);
             _context.Expenses.Add(expense);
             await _context.SaveChangesAsync();
 
@@ -42,7 +44,7 @@ namespace DigitalWalletAPI.Controllers
         }
 
         // GET: api/expenses/{id}
-        [HttpGet("{id}")]
+        [HttpGet("/get-expense/{id}")]
         public async Task<ActionResult<Expense>> GetExpenseById(int id)
         {
             var expense = await _context.Expenses.FindAsync(id);
