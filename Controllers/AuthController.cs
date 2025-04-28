@@ -44,8 +44,13 @@ namespace DigitalWalletAPI.Controllers
                 Email = userDto.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(userDto.Password)
             };
+            var wallet = new Wallet
+            {
+                UserId = user.Id,
+            };
 
             _context.Users.Add(user);
+            _context.Wallets.Add(wallet);
             await _context.SaveChangesAsync();
 
             var tokens = GenerateTokens(user);

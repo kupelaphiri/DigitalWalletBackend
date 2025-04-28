@@ -23,36 +23,64 @@ namespace DigitalWalletAPI.Controllers
         // POST api/transactions
         [HttpPost]
         public async Task<IActionResult> CreateTransaction([FromBody] TransactionCreateDto transactionDto)
+       {
+    // Start a database transaction
+    using var dbTransaction = await _context.Database.BeginTransactionAsync();
+    
+    try
+    {
+        var userId = transactionDto.UserId;
+        
+        // Get the wallet (including the row lock for update)
+        var wallet = await _context.Wallets
+            .Where(w => w.UserId == userId)
+            .FirstOrDefaultAsync();
+            
+        if (wallet == null)
+            return BadRequest("Wallet not found.");
+            
+        if (wallet.Balance < transactionDto.Amount)
+            return BadRequest("Insufficient balance.");
+
+        // Update the wallet balance
+        wallet.Balance -= transactionDto.Amount;
+
+        // Create a new transaction
+        var transaction = new Transaction
         {
-            // Log the claims in the token for debugging
-            var claims = User.Claims.ToList();
-            foreach (var claim in claims)
-            {
-                Console.WriteLine($"Claim Type: {claim.Type}, Claim Value: {claim.Value}");
-            }
+            UserId = userId, 
+            Amount = transactionDto.Amount,
+            RecipientEmail = transactionDto.RecipientEmail,
+            Date = DateTime.UtcNow
+        };
 
-            var userIdString = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-            Console.WriteLine($"Extracted UserId (sub): {userIdString}");
+        var expense = new Expense
+        {
+            UserId = userId,
+            Amount = transactionDto.Amount,
+            Title = "Transaction",
+            Date = DateTime.UtcNow,
+            Category = "Transfer"
+        };
 
-            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out int userId))
-            {
-                return Unauthorized("User ID is missing or invalid.");
-            }
+        _context.Transactions.Add(transaction);
+        _context.Expenses.Add(expense);
+        
+        // Save all changes
+        await _context.SaveChangesAsync();
+        
+        // Commit the transaction if all operations succeeded
+        await dbTransaction.CommitAsync();
 
-            // Create a new transaction
-            var transaction = new Transaction
-            {
-                UserId = userId,  // Safely set the userId from the JWT token
-                Amount = transactionDto.Amount,
-                RecipientEmail = transactionDto.RecipientEmail,
-                Date = DateTime.UtcNow
-            };
-
-            _context.Transactions.Add(transaction);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Transaction created successfully!" });
-        }
+        return Ok(new { message = "Transaction created successfully!" });
+    }
+    catch (Exception ex)
+    {
+        // Roll back if any operation fails
+        await dbTransaction.RollbackAsync();
+        return StatusCode(500, "An error occurred while processing the transaction.");
+    }
+}
 
         // GET api/transactions
        [HttpGet("{userId}")]
@@ -74,4 +102,5 @@ public class TransactionCreateDto
 {
     public decimal Amount { get; set; }
     public string RecipientEmail { get; set; }
+    public int UserId { get; set; }
 }

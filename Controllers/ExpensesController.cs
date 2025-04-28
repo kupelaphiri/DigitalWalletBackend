@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using DigitalWalletAPI.Models;
 using DigitalWalletAPI.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Any;
 
 
 namespace DigitalWalletAPI.Controllers
@@ -19,9 +20,9 @@ namespace DigitalWalletAPI.Controllers
 
         // GET: api/expenses
        [HttpGet("{userId}")]
-        public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses(string userId)
+        public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses(int userId)
         {
-         if (string.IsNullOrEmpty(userId))
+         if (userId == null)
          return BadRequest("UserId is required.");
 
          var expenses = await _context.Expenses
@@ -36,11 +37,30 @@ namespace DigitalWalletAPI.Controllers
         public async Task<ActionResult<Expense>> AddExpense([FromBody] Expense expense)
         {
             Console.WriteLine($"Expense: {expense.Title}, {expense.Amount}, {expense.Date}, {expense.Category}, {expense.UserId}");
+            var userId = expense.UserId;
+            var wallet = await _context.Wallets
+            .Where(w => w.UserId == userId)
+            .FirstOrDefaultAsync();
+            
+             if (wallet == null)
+               return BadRequest("Wallet not found.");
+            
+             if (wallet.Balance < expense.Amount)
+               return BadRequest("Insufficient balance.");
+
+             // Update the wallet balance
+             wallet.Balance -= expense.Amount;
              expense.Date = DateTime.SpecifyKind(expense.Date, DateTimeKind.Utc);
             _context.Expenses.Add(expense);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetExpenseById), new { id = expense.Id }, expense);
+            var response = new
+            {
+            Expense = expense,
+            NewBalance = wallet.Balance
+            };
+
+            return CreatedAtAction(nameof(GetExpenseById), new { id = expense.Id }, response);
         }
 
         // GET: api/expenses/{id}
@@ -87,7 +107,7 @@ namespace DigitalWalletAPI.Controllers
             _context.Expenses.Remove(expense);
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            return Ok();
         }
     }
 }

@@ -13,8 +13,6 @@ namespace DigitalWalletAPI.Models
         [ForeignKey("User")]
         public int UserId { get; set; }
 
-        public User User { get; set; } // Navigation property
-
         [Required]
         [Column(TypeName = "decimal(18,2)")]
         public decimal Balance { get; set; } = 0.00m;

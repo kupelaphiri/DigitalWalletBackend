@@ -57,25 +57,28 @@ namespace DigitalWalletAPI.Controllers
             }
             else
             {
-            wallet.Balance = walletUpdate.Balance;
+            wallet.Balance += walletUpdate.Balance;
             _context.Wallets.Update(wallet);
             }
 
             await _context.SaveChangesAsync();
-            return Ok(wallet);
+            return Ok(new { balance = wallet.Balance });
         }
         // GET api/wallet/balance
-        [HttpGet("balance")]
-        public async Task<IActionResult> GetBalance()
+        [HttpGet("balance/{userId}")]
+        public async Task<IActionResult> GetBalance(int userId)
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userId == null)
                 return Unauthorized("User not found.");
 
-            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId.ToString() == userId);
-            if (wallet == null)
-                return NotFound("Wallet not found for this user.");
-
+            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
+            if (wallet == null){
+                wallet = new Wallet
+                {
+                    UserId = userId,
+                };
+            _context.Wallets.Add(wallet);
+            }
             return Ok(new { balance = wallet.Balance });
         }
     }
